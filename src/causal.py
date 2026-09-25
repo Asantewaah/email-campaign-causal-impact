@@ -105,9 +105,32 @@ def cross_fit_nuisance(X, A, Y, learner=_default_learner, n_folds: int = 5, seed
     return Q1, Q0, np.clip(g, 0.01, 0.99)
 
 
-def g_computation(Q1, Q0) -> dict:
-    """Outcome-regression (plug-in) estimate. No valid SE, so bootstrap if needed."""
-    return _result(float(np.mean(Q1 - Q0)), np.nan)
+def g_computation(Q1, Q0, se: float = np.nan) -> dict:
+    """Outcome-regression (plug-in) estimate. It has no analytic standard error,
+    so pass one from `bootstrap_outcome_regression_se` to get an interval."""
+    return _result(float(np.mean(Q1 - Q0)), se)
+
+
+def bootstrap_outcome_regression_se(X, A, Y, n_boot: int = 50, learner=_default_learner, seed: int = 0) -> float:
+    """Nonparametric bootstrap standard error for the outcome-regression estimate.
+
+    Each replicate resamples customers with replacement, refits the outcome
+    model on the resample and recomputes the plug-in estimate. For speed the
+    outcome model is fitted once per replicate (no cross-fitting), so this
+    approximates the variability of the cross-fitted point estimate.
+    """
+    X, A, Y = np.asarray(X, float), np.asarray(A), np.asarray(Y)
+    rng = np.random.default_rng(seed)
+    n = len(Y)
+    estimates = np.empty(n_boot)
+    for b in range(n_boot):
+        idx = rng.integers(0, n, n)
+        Xb, Ab, Yb = X[idx], A[idx], Y[idx]
+        q = learner().fit(np.column_stack([Ab, Xb]), Yb)
+        q1 = q.predict_proba(np.column_stack([np.ones(n), Xb]))[:, 1]
+        q0 = q.predict_proba(np.column_stack([np.zeros(n), Xb]))[:, 1]
+        estimates[b] = np.mean(q1 - q0)
+    return float(estimates.std(ddof=1))
 
 
 def ipw(A, Y, g) -> dict:
@@ -158,13 +181,19 @@ def tmle(A, Y, Q1, Q0, g) -> dict:
     return _result(est, ic.std(ddof=1) / np.sqrt(len(Y)))
 
 
-def estimate_all(df: pd.DataFrame, outcome: str = "visit", learner=_default_learner, seed: int = 0) -> pd.DataFrame:
-    """Run every estimator on one dataset and return a tidy table."""
+def estimate_all(df: pd.DataFrame, outcome: str = "visit", learner=_default_learner, seed: int = 0,
+                 n_boot: int = 50) -> pd.DataFrame:
+    """Run every estimator on one dataset and return a tidy table.
+
+    `n_boot` bootstrap replicates give outcome regression its interval; set it
+    to 0 to skip the bootstrap (much faster, but no interval for that method).
+    """
     X, A, Y = make_features(df), df["treated"].to_numpy(), df[outcome].to_numpy()
     Q1, Q0, g = cross_fit_nuisance(X, A, Y, learner=learner, seed=seed)
+    or_se = bootstrap_outcome_regression_se(X, A, Y, n_boot, learner, seed) if n_boot > 0 else np.nan
     rows = {
         "Naive comparison": naive(A, Y),
-        "Outcome regression": g_computation(Q1, Q0),
+        "Outcome regression": g_computation(Q1, Q0, or_se),
         "IPW": ipw(A, Y, g),
         "AIPW": aipw(A, Y, Q1, Q0, g),
         "TMLE": tmle(A, Y, Q1, Q0, g),
