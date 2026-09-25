@@ -1,6 +1,9 @@
 """Repeat the targeting simulation many times to check each estimator's bias and coverage.
 
-Usage: python run_sim.py [n_reps]
+Usage: python run_sim.py [n_reps]   or   python run_sim.py <start> <stop>
+
+Each campaign takes about 40 seconds, mostly the 50-replicate bootstrap for
+outcome regression, so 100 campaigns take roughly an hour.
 """
 import sys
 from pathlib import Path
