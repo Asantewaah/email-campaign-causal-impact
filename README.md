@@ -11,6 +11,7 @@ When a marketing team emails its best customers and then sees those customers vi
 - **The email works.** In a randomised experiment on 64,000 customers, an email raised the two-week website visit rate by **6.1 percentage points** (95% CI 5.5 to 6.6), from 10.6% to about 17%, a relative lift of over 50%.
 - **Naive analysis overstates the effect by about 60%.** When the campaign is targeted at high-value, recently active customers, simply comparing emailed and non-emailed customers suggests a lift of about 9.8 points. Its confidence interval missed the truth in all 100 simulated campaigns.
 - **Doubly robust methods recover the truth.** AIPW and TMLE were essentially unbiased (average error 0.01 points) and their 95% confidence intervals contained the true value in 95% of runs, exactly as they should.
+- **Machine learning alone is not enough.** Plain outcome regression with the same model is biased by half a point, so its bootstrap intervals cover the truth only 89% of the time. TMLE's targeting step removes that bias.
 - **Which email matters.** The men's merchandise email lifts visits for every type of shopper, but the women's email barely moves customers who only buy men's products (1.1 points versus 6.9). The men's email is the better default.
 
 ## Approach
@@ -27,12 +28,12 @@ When a marketing team emails its best customers and then sees those customers vi
 | AIPW | Doubly robust: combines both models and is correct if either is |
 | TMLE | Doubly robust, with a targeting step that keeps estimates efficient and within valid probabilities |
 
-Nuisance models are gradient-boosted classifiers with 5-fold cross-fitting. The whole exercise is repeated on 100 simulated campaigns to measure bias and confidence interval coverage.
+Nuisance models are gradient-boosted classifiers with 5-fold cross-fitting. Outcome regression has no analytic standard error, so its intervals come from a 50-replicate nonparametric bootstrap. The whole exercise is repeated on 100 simulated campaigns to measure bias and confidence interval coverage.
 
 | Estimator | Average estimate (pp) | Bias (pp) | 95% CI coverage |
 |---|---|---|---|
 | Naive comparison | 9.80 | +3.71 | 0% |
-| Outcome regression | 5.57 | −0.51 | n/a |
+| Outcome regression | 5.57 | −0.51 | 89% |
 | IPW | 6.20 | +0.11 | 95% |
 | AIPW | 6.08 | −0.01 | 95% |
 | TMLE | 6.07 | −0.01 | 95% |
@@ -60,7 +61,7 @@ These methods work here because everything that drove targeting is recorded in t
 pip install -r requirements.txt
 jupyter notebook notebooks/campaign_impact.ipynb
 
-# optional: regenerate the simulation (takes about 10 minutes)
+# optional: regenerate the simulation (about an hour, mostly the bootstrap)
 cd src && python run_sim.py 100
 ```
 

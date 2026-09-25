@@ -80,7 +80,7 @@ def forest_plot(res: pd.DataFrame, truth: float, order: list[str], path: str | N
     ax.set_ylim(-0.6, len(order))
     ax.set_xlabel("Estimated lift in visit rate (percentage points), with 95% confidence interval")
     _frame(fig, ax, "Adjusting for how customers were chosen recovers the truth",
-           "Estimates from one simulated targeted campaign. Outcome regression has no simple interval.")
+           "Estimates from one simulated targeted campaign. Outcome regression's interval is from a 50-replicate bootstrap.")
     if path:
         fig.savefig(path)
     return fig
