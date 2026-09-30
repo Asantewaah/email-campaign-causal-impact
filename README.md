@@ -13,6 +13,7 @@ When a marketing team emails its best customers and then sees those customers vi
 - **Doubly robust methods recover the truth.** AIPW and TMLE were essentially unbiased (average error 0.01 points) and their 95% confidence intervals contained the true value in 95% of runs, exactly as they should.
 - **Machine learning alone is not enough.** Plain outcome regression with the same model is biased by half a point, so its bootstrap intervals cover the truth only 89% of the time. TMLE's targeting step removes that bias.
 - **Which email matters.** The men's merchandise email lifts visits for every type of shopper, but the women's email barely moves customers who only buy men's products (1.1 points versus 6.9). The men's email is the better default.
+- **A causal forest learns who responds, from the targeted data alone.** Trained only on the targeted campaign and checked on held-out customers from the experiment, it ranked customers correctly for the women's email: the fifth it predicted to respond least gained 3.6 points, the fifth it predicted to respond most gained 8.8. It rediscovered the men's-only pattern without being told about shopper type.
 
 ## Approach
 
@@ -30,6 +31,8 @@ When a marketing team emails its best customers and then sees those customers vi
 
 Nuisance models are gradient-boosted classifiers with 5-fold cross-fitting. Outcome regression has no analytic standard error, so its intervals come from a 50-replicate nonparametric bootstrap. The whole exercise is repeated on 100 simulated campaigns to measure bias and confidence interval coverage.
 
+4. **Who responds most.** A causal forest ([EconML](https://github.com/py-why/EconML)'s `CausalForestDML`, in [`src/heterogeneity.py`](src/heterogeneity.py)) estimates each customer's lift from the men's and the women's email. It is trained on a targeted campaign built from a random half of customers, and checked on the other half, which is still a randomised experiment.
+
 | Estimator | Average estimate (pp) | Bias (pp) | 95% CI coverage |
 |---|---|---|---|
 | Naive comparison | 9.80 | +3.71 | 0% |
@@ -40,6 +43,10 @@ Nuisance models are gradient-boosted classifiers with 5-fold cross-fitting. Outc
 
 <p align="center"><img src="figures/who_responds.png" width="620" alt="Lift in visit rate by shopper type for the men's and women's emails"></p>
 
+<p align="center"><img src="figures/who_responds_forest.png" width="680" alt="Causal forest predicted lift versus actual lift in the experiment, by fifth of predicted lift, for each email"></p>
+
+For the men's email the forest predicts some variation that the experiment doesn't show: that email works about equally well for everyone, so there is little to personalise. Leaf size mattered: with small leaves the forest badly overstated how much customers differ, which is why its predictions are checked against a holdout before being trusted.
+
 ## Limitations
 
 These methods work here because everything that drove targeting is recorded in the data. If a real campaign was targeted using information the analyst can't see, no adjustment can fully remove the bias, and a sensitivity analysis or a randomised holdout group would be the next step. The simulated targeting rule is also deliberately simple.
@@ -49,6 +56,7 @@ These methods work here because everything that drove targeting is recorded in t
 ```
 ├── notebooks/campaign_impact.ipynb   full analysis with outputs, start here
 ├── src/causal.py                     data loading, targeting simulation and all estimators
+├── src/heterogeneity.py              causal forest for customer-level effects, and its holdout check
 ├── src/run_sim.py                    repeats the analysis on 100 simulated campaigns
 ├── results/simulation_results.csv    saved output of run_sim.py
 ├── figures/                          charts used in this README
