@@ -141,3 +141,41 @@ def heterogeneity_plot(hte: pd.DataFrame, groups: list[str], path: str | None = 
     if path:
         fig.savefig(path)
     return fig
+
+
+def calibration_plot(groups: pd.DataFrame, path: str | None = None):
+    """Predicted versus actual lift for held-out customers grouped by predicted lift, one panel per email."""
+    emails = [("Men's email", INK, INK), ("Women's email", GOLD, "#9A7400")]
+    fig, axes = plt.subplots(1, 2, figsize=(8.6, 4.2), sharey=True)
+    fig.subplots_adjust(top=0.76, bottom=0.2, wspace=0.08)
+    n = groups.group.max()
+    for ax, (email, col, txt) in zip(axes, emails):
+        t = groups[groups.email == email].sort_values("group")
+        x = t.group.to_numpy()
+        ax.grid(axis="x", visible=False)
+        ax.grid(axis="y", color=LIGHT, lw=1)
+        ax.vlines(x, t.lower * 100, t.upper * 100, color=col, lw=2.5, zorder=2)
+        ax.scatter(x, t.estimate * 100, s=70, color=col, edgecolor=INK, lw=0.6, zorder=3)
+        ax.plot(x, t.predicted * 100, color=GREY, lw=1.2, ls="--", zorder=1)
+        ax.scatter(x, t.predicted * 100, s=55, facecolor="white", edgecolor=GREY, lw=1.5, zorder=4)
+        ax.set_xticks(x, ["Lowest\nfifth"] + [""] * (n - 2) + ["Highest\nfifth"])
+        ax.set_xlim(0.5, n + 0.5)
+        ax.axhline(0, color=INK, lw=0.8)
+        ax.set_title(email, loc="left", fontsize=11, fontweight="bold", color=txt)
+        if email != emails[-1][0]:
+            continue
+        last = t.iloc[-1]
+        ax.annotate("actual", (last.group, last.estimate * 100), xytext=(9, 0), textcoords="offset points",
+                    va="center", fontsize=8.5, color=txt, fontweight="bold")
+        ax.annotate("predicted", (last.group, last.predicted * 100), xytext=(9, 0), textcoords="offset points",
+                    va="center", fontsize=8.5, color=GREY, fontweight="bold")
+    axes[0].set_ylabel("Lift in visit rate (percentage points)")
+    fig.text(0.5, 0.03, "Held-out customers, ranked into fifths by the forest's predicted lift", ha="center",
+             va="bottom", fontsize=9.5, color=INK, transform=fig.transFigure)
+    axes[0].set_ylim(bottom=min(0, groups.lower.min() * 100 - 0.5))
+    _frame(fig, axes[0], "The forest spots who the women's email reaches, and the experiment agrees",
+           "A causal forest learned from the targeted campaign ranks customers it never saw. Actual lift\n"
+           "comes from the randomised experiment (dots, 95% intervals); open circles are the forest's predictions.")
+    if path:
+        fig.savefig(path)
+    return fig
